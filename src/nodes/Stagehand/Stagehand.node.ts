@@ -22,6 +22,7 @@ interface StagehandSession {
 	enableCaching: boolean;
 	verbose: 0 | 1 | 2;
 	domSettleTimeoutMs: number;
+	waitUntil: 'load' | 'domcontentloaded' | 'networkidle';
 	lastNavigatedUrl?: string; // Guardar la última URL navegada
 }
 
@@ -535,11 +536,49 @@ export class Stagehand implements INodeType {
 						description: 'Maximum time to wait for DOM to stabilize',
 					},
 					{
+						displayName: 'Wait Until',
+						name: 'waitUntil',
+						type: 'options',
+						options: [
+							{
+								name: 'Load',
+								value: 'load',
+								description: 'Wait until the load event is fired',
+							},
+							{
+								name: 'DOMContentLoaded',
+								value: 'domcontentloaded',
+								description: 'Wait until the DOMContentLoaded event is fired',
+							},
+							{
+								name: 'Network Idle',
+								value: 'networkidle',
+								description: 'Wait until there are no more than 2 network connections for at least 500ms',
+							},
+						],
+						default: 'networkidle',
+						description: 'When to consider navigation succeeded. Network Idle ensures the page is fully loaded.',
+					},
+					{
 						displayName: 'Wait Between Actions (ms)',
 						name: 'waitBetweenActions',
 						type: 'number',
 						default: 0,
 						description: 'Delay in milliseconds between actions (only for Agent Execute)',
+					},
+					{
+						displayName: 'Act Timeout (ms)',
+						name: 'actTimeout',
+						type: 'number',
+						default: 30000,
+						description: 'Maximum time to wait for actions to complete. Reduce for simple operations (e.g., 5000-10000ms for clicks).',
+					},
+					{
+						displayName: 'Block Heavy Resources',
+						name: 'blockHeavyResources',
+						type: 'boolean',
+						default: false,
+						description: 'Block images, fonts, and media to speed up page loads. Useful for text-only extraction.',
 					},
 				],
 			},
@@ -605,6 +644,8 @@ export class Stagehand implements INodeType {
 		const enableCaching = this.getNodeParameter('options.enableCaching', 0, true) as boolean;
 		const verbose = this.getNodeParameter('options.verbose', 0, 0) as 0 | 1 | 2;
 		const domSettleTimeoutMs = this.getNodeParameter('options.domSettleTimeoutMs', 0, 30000) as number;
+		const waitUntil = this.getNodeParameter('options.waitUntil', 0, 'networkidle') as 'load' | 'domcontentloaded' | 'networkidle';
+		const blockHeavyResources = this.getNodeParameter('options.blockHeavyResources', 0, false) as boolean;
 		const fullModelName = modelName.includes('/') ? modelName : `${modelProvider}/${modelName}`;
 
 		// Verificar si existe una sesión
@@ -635,7 +676,8 @@ export class Stagehand implements INodeType {
 				env: 'LOCAL',
 				verbose: verbose,
 				enableCaching: enableCaching,
-				domSettleTimeoutMs: domSettleTimeoutMs,
+				// Si waitUntil es 'networkidle', no necesitamos domSettleTimeoutMs largo
+				domSettleTimeoutMs: waitUntil === 'networkidle' ? 1000 : domSettleTimeoutMs,
 				modelName: fullModelName,
 				modelClientOptions: {
 					apiKey: apiKey,
@@ -655,6 +697,18 @@ export class Stagehand implements INodeType {
 			const newStagehand = new StagehandCore(stagehandConfig);
 			await newStagehand.init();
 
+			// Bloquear recursos pesados si está habilitado
+			if (blockHeavyResources && newStagehand.context) {
+				await newStagehand.context.route('**/*', (route) => {
+					const resourceType = route.request().resourceType();
+					if (['image', 'font', 'media'].includes(resourceType)) {
+						route.abort();
+					} else {
+						route.continue();
+					}
+				});
+			}
+
 			// Almacenar sesión completa
 			const session: StagehandSession = {
 				instance: newStagehand,
@@ -664,16 +718,17 @@ export class Stagehand implements INodeType {
 				enableCaching,
 				verbose,
 				domSettleTimeoutMs,
+				waitUntil,
 			};
-			
+
 			if (cdpUrl) {
 				session.cdpUrl = cdpUrl;
 			}
-			
+
 			if (browserlessTimeout) {
 				session.browserlessTimeout = browserlessTimeout;
 			}
-			
+
 			stagehandSessions.set(workflowId, session);
 			return newStagehand;
 		};
@@ -700,8 +755,8 @@ export class Stagehand implements INodeType {
 				session.browserlessTimeout,
 			);
 
-			// Navegar automáticamente a la última URL
-			await stagehand.page.goto(session.lastNavigatedUrl);
+			// Navegar automáticamente a la última URL con el waitUntil guardado
+			await stagehand.page.goto(session.lastNavigatedUrl, { waitUntil: session.waitUntil });
 		};
 
 		if (!needsNewInstance && existingSession) {
@@ -745,12 +800,14 @@ export class Stagehand implements INodeType {
 				switch (operation) {
 					case 'navigate': {
 						const url = this.getNodeParameter('url', i, '') as string;
-						await stagehand.page.goto(url);
+						const waitUntil = this.getNodeParameter('options.waitUntil', i, 'networkidle') as 'load' | 'domcontentloaded' | 'networkidle';
+						await stagehand.page.goto(url, { waitUntil });
 
 						// Guardar la URL navegada en la sesión
 						const session = stagehandSessions.get(workflowId);
 						if (session) {
 							session.lastNavigatedUrl = url;
+							session.waitUntil = waitUntil;
 							stagehandSessions.set(workflowId, session);
 						}
 
@@ -758,6 +815,7 @@ export class Stagehand implements INodeType {
 							json: {
 								operation,
 								url,
+								waitUntil,
 								success: true,
 								...(logMessages ? { messages } : {}),
 							},
