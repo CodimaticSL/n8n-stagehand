@@ -1,0 +1,50 @@
+# Source files
+src/
+*.ts
+!*.d.ts
+
+# Configuration files
+.eslintrc.js
+tsconfig.json
+nodemon.json
+gulpfile.js
+
+# Development files
+.vscode/
+.idea/
+
+# Test files
+test/
+tests/
+*.test.ts
+*.spec.ts
+coverage/
+
+# Documentation (se incluirá README.md y LICENSE)
+docs/
+
+# Git files
+.git/
+.gitignore
+.github/
+
+# Downloads folder
+downloads/
+
+# Node modules
+node_modules/
+
+# Build artifacts
+*.tsbuildinfo
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+
+# AI rules
+.codacy/

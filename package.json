@@ -1,0 +1,75 @@
+{
+  "name": "n8n-stagehand",
+  "version": "0.1.0",
+  "description": "N8n node for integrating Stagehand browser automation",
+  "keywords": [
+    "n8n-community-node-package",
+    "stagehand",
+    "browser-automation",
+    "ai",
+    "web-scraping"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/CodimaticSL/n8n-stagehand#readme",
+  "author": {
+    "name": "Codimatic",
+    "email": "info@codimatic.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CodimaticSL/n8n-stagehand.git"
+  },
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc && gulp build:icons",
+    "dev": "tsc --watch",
+    "format": "prettier --write .",
+    "lint": "eslint src/**/*.ts",
+    "lintfix": "eslint src/**/*.ts --fix",
+    "prepublishOnly": "npm run build && npm run lint -s",
+    "test": "jest",
+    "test:watch": "jest --watch"
+  },
+  "files": [
+    "dist"
+  ],
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "credentials": [
+      "dist/credentials/StagehandApi.credentials.js"
+    ],
+    "nodes": [
+      "dist/nodes/Stagehand/Stagehand.node.js"
+    ]
+  },
+  "devDependencies": {
+    "@types/express": "4.17.17",
+    "@types/jest": "29.5.2",
+    "@types/node": "18.16.16",
+    "@typescript-eslint/eslint-plugin": "5.59.8",
+    "@typescript-eslint/parser": "5.59.8",
+    "eslint": "9.37.0",
+    "eslint-config-prettier": "8.8.0",
+    "eslint-plugin-prettier": "4.2.1",
+    "gulp": "5.0.1",
+    "jest": "29.5.0",
+    "jest-mock-extended": "4.0.0",
+    "n8n-core": "1.90.2",
+    "n8n-workflow": "1.113.0",
+    "prettier": "2.8.8",
+    "typescript": "5.9.3"
+  },
+  "peerDependencies": {
+    "n8n-workflow": ">=1.0.0"
+  },
+  "dependencies": {
+    "@browserbasehq/stagehand": "2.5.2",
+    "json-schema-to-zod": "2.6.1",
+    "json-to-zod": "1.1.2",
+    "playwright": "1.56.0",
+    "zod": "^3.25.0"
+  },
+  "overrides": {
+    "pkce-challenge": "3.1.0"
+  }
+}
