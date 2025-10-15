@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# Script de despliegue para n8n-stagehand
+# Script de despliegue para n8n-nodes-stagehand-browser
 # Ejecuta este script para inicializar git, crear el repositorio y publicar en npm
 
 echo "==================================="
-echo "Despliegue de n8n-stagehand"
+echo "Despliegue de n8n-nodes-stagehand-browser"
 echo "==================================="
 echo ""
 
@@ -36,7 +36,7 @@ echo ""
 
 # Paso 4: Hacer commit inicial
 echo "💾 Creando commit inicial..."
-git commit -m "Initial commit: n8n-stagehand ready for npm"
+git commit -m "Initial commit: n8n-nodes-stagehand-browser ready for npm"
 echo "✓ Commit creado"
 echo ""
 
@@ -90,11 +90,11 @@ echo "✓ Autenticado en npm como: $(npm whoami)"
 echo ""
 
 # Paso 8: Verificar que el nombre del paquete esté disponible
-echo "🔍 Verificando disponibilidad del nombre 'n8n-stagehand'..."
-npm view n8n-stagehand > /dev/null 2>&1
+echo "🔍 Verificando disponibilidad del nombre 'n8n-nodes-stagehand-browser'..."
+npm view n8n-nodes-stagehand-browser > /dev/null 2>&1
 
 if [ $? -eq 0 ]; then
-    echo "⚠️  El paquete 'n8n-stagehand' ya existe en npm."
+    echo "⚠️  El paquete 'n8n-nodes-stagehand-browser' ya existe en npm."
     read -p "¿Deseas continuar de todos modos? (s/n): " continue_publish
     if [ "$continue_publish" != "s" ]; then
         echo "❌ Publicación cancelada."
@@ -122,11 +122,11 @@ if [ $? -eq 0 ]; then
     echo "✅ ¡DESPLIEGUE EXITOSO!"
     echo "==================================="
     echo ""
-    echo "📦 Paquete: n8n-stagehand"
+    echo "📦 Paquete: n8n-nodes-stagehand-browser"
     echo "🔗 GitHub: https://github.com/CodimaticSL/n8n-stagehand"
-    echo "📚 npm: https://www.npmjs.com/package/n8n-stagehand"
+    echo "📚 npm: https://www.npmjs.com/package/n8n-nodes-stagehand-browser"
     echo ""
-    echo "Puedes verificar la publicación con: npm view n8n-stagehand"
+    echo "Puedes verificar la publicación con: npm view n8n-nodes-stagehand-browser"
 else
     echo ""
     echo "❌ Error durante la publicación en npm."

@@ -11,8 +11,22 @@ import type { ZodTypeAny } from 'zod';
 import jsonToZod from 'json-to-zod';
 import jsonSchemaToZod from 'json-schema-to-zod';
 
-// Mapa global para almacenar instancias de Stagehand por workflow ID
-const stagehandInstances = new Map<string, StagehandCore>();
+// Interfaz para almacenar instancia y configuración de Stagehand
+interface StagehandSession {
+	instance: StagehandCore;
+	browserMode: string;
+	cdpUrl?: string;
+	browserlessTimeout?: number;
+	apiKey: string;
+	modelName: string;
+	enableCaching: boolean;
+	verbose: 0 | 1 | 2;
+	domSettleTimeoutMs: number;
+	lastNavigatedUrl?: string; // Guardar la última URL navegada
+}
+
+// Mapa global para almacenar sesiones de Stagehand por workflow ID
+const stagehandSessions = new Map<string, StagehandSession>();
 
 type Field = {
 	fieldName: string;
@@ -95,7 +109,7 @@ export class Stagehand implements INodeType {
 					{
 						name: 'Navigate',
 						value: 'navigate',
-						description: 'Navigate to a URL',
+						description: 'Navigate to a URL and initialize browser session',
 						action: 'Navigate to a URL',
 					},
 					{
@@ -136,6 +150,59 @@ export class Stagehand implements INodeType {
 					},
 				],
 				default: 'navigate',
+			},
+			{
+				displayName: 'Browser Mode',
+				name: 'browserMode',
+				type: 'options',
+				options: [
+					{
+						name: 'Local Browser',
+						value: 'local',
+						description: 'Use local Chromium (requires compatible OS, not Alpine)',
+					},
+					{
+						name: 'Remote CDP (Browserless)',
+						value: 'remote',
+						description: 'Connect to remote browser via CDP (compatible with Alpine)',
+					},
+				],
+				default: 'local',
+				description: 'How to connect to the browser. This setting is used for the entire workflow session.',
+				displayOptions: {
+					show: {
+						operation: ['navigate'],
+					},
+				},
+			},
+			{
+				displayName: 'CDP URL',
+				name: 'cdpUrl',
+				type: 'string',
+				default: 'ws://browserless:3000',
+				placeholder: 'ws://browserless:3000 or wss://your-domain',
+				description: 'WebSocket URL of the remote browser CDP endpoint. Used only when initializing the session.',
+				displayOptions: {
+					show: {
+						operation: ['navigate'],
+						browserMode: ['remote'],
+					},
+				},
+				required: true,
+			},
+			{
+				displayName: 'Browserless Timeout (ms)',
+				name: 'browserlessTimeout',
+				type: 'number',
+				default: 300000,
+				placeholder: '300000',
+				description: 'Timeout in milliseconds for Browserless sessions. Default is 300000ms (5 minutes). This prevents the browser from closing between operations.',
+				displayOptions: {
+					show: {
+						operation: ['navigate'],
+						browserMode: ['remote'],
+					},
+				},
 			},
 			{
 				displayName: 'URL',
@@ -529,26 +596,43 @@ export class Stagehand implements INodeType {
 		}
 
 		let stagehand: StagehandCore;
-
-		// Obtener el ID del workflow para identificar la instancia
+		
+		// Obtener el ID del workflow para identificar la sesión
 		const workflowId = this.getWorkflow().id || 'default';
+		const operation = this.getNodeParameter('operation', 0) as string;
 
-		// Verificar si ya existe una instancia para este workflow
-		const existingInstance = stagehandInstances.get(workflowId);
+		// Obtener configuración común
+		const enableCaching = this.getNodeParameter('options.enableCaching', 0, true) as boolean;
+		const verbose = this.getNodeParameter('options.verbose', 0, 0) as 0 | 1 | 2;
+		const domSettleTimeoutMs = this.getNodeParameter('options.domSettleTimeoutMs', 0, 30000) as number;
+		const fullModelName = modelName.includes('/') ? modelName : `${modelProvider}/${modelName}`;
 
-		if (!existingInstance) {
-			// Si no existe, crear una nueva instancia
-			const enableCaching = this.getNodeParameter('options.enableCaching', 0, true) as boolean;
-			const verbose = this.getNodeParameter('options.verbose', 0, 0) as 0 | 1 | 2;
-			const domSettleTimeoutMs = this.getNodeParameter('options.domSettleTimeoutMs', 0, 30000) as number;
+		// Verificar si existe una sesión
+		const existingSession = stagehandSessions.get(workflowId);
+		let needsNewInstance = !existingSession;
 
-			// Construir nombre completo del modelo con prefijo del proveedor
-			const fullModelName = modelName.includes('/') ? modelName : `${modelProvider}/${modelName}`;
+		// Si existe sesión, verificar si está viva
+		if (existingSession) {
+			try {
+				const isAlive = existingSession.instance.page && !existingSession.instance.page.isClosed();
+				if (!isAlive) {
+					needsNewInstance = true;
+					stagehandSessions.delete(workflowId);
+				}
+			} catch (error) {
+				needsNewInstance = true;
+				stagehandSessions.delete(workflowId);
+			}
+		}
 
-			// Build Stagehand configuration with API key from native credentials
+		// Función helper para crear/recrear instancia de Stagehand
+		const createStagehandInstance = async (
+			browserMode: string,
+			cdpUrl: string | undefined,
+			browserlessTimeout: number | undefined,
+		): Promise<StagehandCore> => {
 			const stagehandConfig: any = {
 				env: 'LOCAL',
-				headless: false,
 				verbose: verbose,
 				enableCaching: enableCaching,
 				domSettleTimeoutMs: domSettleTimeoutMs,
@@ -558,14 +642,97 @@ export class Stagehand implements INodeType {
 				},
 			};
 
-			stagehand = new StagehandCore(stagehandConfig);
-			await stagehand.init();
+			// Configure browser connection based on mode
+			if (browserMode === 'remote' && cdpUrl) {
+				stagehandConfig.localBrowserLaunchOptions = {
+					cdpUrl: cdpUrl,
+				};
+			} else {
+				stagehandConfig.headless = false;
+			}
 
-			// Almacenar la instancia para reutilización
-			stagehandInstances.set(workflowId, stagehand);
+			// Crear nueva instancia
+			const newStagehand = new StagehandCore(stagehandConfig);
+			await newStagehand.init();
+
+			// Almacenar sesión completa
+			const session: StagehandSession = {
+				instance: newStagehand,
+				browserMode,
+				apiKey: apiKey!,
+				modelName: fullModelName,
+				enableCaching,
+				verbose,
+				domSettleTimeoutMs,
+			};
+			
+			if (cdpUrl) {
+				session.cdpUrl = cdpUrl;
+			}
+			
+			if (browserlessTimeout) {
+				session.browserlessTimeout = browserlessTimeout;
+			}
+			
+			stagehandSessions.set(workflowId, session);
+			return newStagehand;
+		};
+
+		// Función helper para reconectar cuando se detecta sesión perdida
+		const reconnectIfNeeded = async (): Promise<void> => {
+			const session = stagehandSessions.get(workflowId);
+			if (!session) {
+				throw new ApplicationError(
+					'Browser session lost. Please execute the Navigate operation first to initialize the browser.',
+				);
+			}
+
+			if (!session.lastNavigatedUrl) {
+				throw new ApplicationError(
+					'Browser session lost and no previous URL found. Please execute the Navigate operation first.',
+				);
+			}
+
+			// Recrear instancia con la configuración guardada
+			stagehand = await createStagehandInstance(
+				session.browserMode,
+				session.cdpUrl,
+				session.browserlessTimeout,
+			);
+
+			// Navegar automáticamente a la última URL
+			await stagehand.page.goto(session.lastNavigatedUrl);
+		};
+
+		if (!needsNewInstance && existingSession) {
+			// Reutilizar instancia existente
+			stagehand = existingSession.instance;
 		} else {
-			// Reutilizar la instancia existente
-			stagehand = existingInstance;
+			// Obtener configuración de navegador
+			let browserMode = 'local';
+			let cdpUrl: string | undefined;
+			let browserlessTimeout: number | undefined;
+
+			if (operation === 'navigate') {
+				browserMode = this.getNodeParameter('browserMode', 0, 'local') as string;
+				if (browserMode === 'remote') {
+					cdpUrl = this.getNodeParameter('cdpUrl', 0) as string;
+					browserlessTimeout = this.getNodeParameter('browserlessTimeout', 0, 300000) as number;
+					
+					// Agregar el parámetro timeout a la URL de CDP
+					if (cdpUrl && browserlessTimeout) {
+						const separator = cdpUrl.includes('?') ? '&' : '?';
+						cdpUrl = `${cdpUrl}${separator}timeout=${browserlessTimeout}`;
+					}
+				}
+			} else if (existingSession) {
+				// Reutilizar configuración de sesión anterior
+				browserMode = existingSession.browserMode;
+				cdpUrl = existingSession.cdpUrl;
+				browserlessTimeout = existingSession.browserlessTimeout;
+			}
+
+			stagehand = await createStagehandInstance(browserMode, cdpUrl, browserlessTimeout);
 		}
 
 		for (let i = 0; i < items.length; i++) {
@@ -579,6 +746,13 @@ export class Stagehand implements INodeType {
 					case 'navigate': {
 						const url = this.getNodeParameter('url', i, '') as string;
 						await stagehand.page.goto(url);
+
+						// Guardar la URL navegada en la sesión
+						const session = stagehandSessions.get(workflowId);
+						if (session) {
+							session.lastNavigatedUrl = url;
+							stagehandSessions.set(workflowId, session);
+						}
 
 						results.push({
 							json: {
@@ -594,6 +768,13 @@ export class Stagehand implements INodeType {
 					case 'act': {
 						const instruction = this.getNodeParameter('instruction', i, '') as string;
 
+						// Validar que la página esté activa, reconectar si es necesario
+						const actUrl = stagehand.page.url();
+						if (!actUrl || actUrl === 'about:blank') {
+							await reconnectIfNeeded();
+							// Continuar con la operación después de reconectar
+						}
+
 						const result = await stagehand.page.act(instruction);
 						results.push({
 							json: {
@@ -608,6 +789,13 @@ export class Stagehand implements INodeType {
 					case 'extract': {
 						const instruction = this.getNodeParameter('instruction', i, '') as string;
 						const schemaSource = this.getNodeParameter('schemaSource', i, 'fieldList') as string;
+
+						// Validar que la página esté activa, reconectar si es necesario
+						const extractUrl = stagehand.page.url();
+						if (!extractUrl || extractUrl === 'about:blank') {
+							await reconnectIfNeeded();
+							// Continuar con la operación después de reconectar
+						}
 
 						let schema: z.ZodObject<any>;
 						switch (schemaSource) {
@@ -672,14 +860,22 @@ export class Stagehand implements INodeType {
 							);
 						}
 
+						// Validar que la página esté activa, reconectar si es necesario
+						const currentUrl = stagehand.page.url();
+						if (!currentUrl || currentUrl === 'about:blank') {
+							await reconnectIfNeeded();
+							// Continuar con la operación después de reconectar
+						}
+
 						// Convert arguments object to array of values for page.evaluate
 						const argValues = Object.values(evaluateArguments);
 
 						// Execute the JavaScript code in the browser context
+						// The code should be a function expression that we call with the arguments
 						const result = await stagehand.page.evaluate(
 							new Function(
 								...Object.keys(evaluateArguments),
-								`return (${javascriptCode})(...arguments);`,
+								`return (${javascriptCode}).apply(null, arguments);`,
 							) as any,
 							...argValues,
 						);
@@ -689,6 +885,7 @@ export class Stagehand implements INodeType {
 								operation,
 								result: result as any,
 								arguments: evaluateArguments,
+								currentUrl: currentUrl, // Include current URL for debugging
 								...(logMessages ? { messages } : {}),
 							},
 						});
@@ -697,6 +894,13 @@ export class Stagehand implements INodeType {
 
 					case 'observe': {
 						const instruction = this.getNodeParameter('instruction', i, '') as string;
+
+						// Validar que la página esté activa, reconectar si es necesario
+						const observeUrl = stagehand.page.url();
+						if (!observeUrl || observeUrl === 'about:blank') {
+							await reconnectIfNeeded();
+							// Continuar con la operación después de reconectar
+						}
 
 						const result = await stagehand.page.observe({
 							instruction,
@@ -714,6 +918,13 @@ export class Stagehand implements INodeType {
 
 					case 'agentExecute': {
 						const instruction = this.getNodeParameter('instruction', i, '') as string;
+
+						// Validar que la página esté activa, reconectar si es necesario
+						const agentUrl = stagehand.page.url();
+						if (!agentUrl || agentUrl === 'about:blank') {
+							await reconnectIfNeeded();
+							// Continuar con la operación después de reconectar
+						}
 						const maxSteps = this.getNodeParameter('maxSteps', i, 20) as number;
 						const autoScreenshot = this.getNodeParameter('autoScreenshot', i, true) as boolean;
 						const waitBetweenActions = this.getNodeParameter('options.waitBetweenActions', i, 0) as number;
@@ -762,7 +973,7 @@ export class Stagehand implements INodeType {
 					case 'closeSession': {
 						// Cerrar la sesión del navegador y limpiar recursos
 						await stagehand.close();
-						stagehandInstances.delete(workflowId);
+						stagehandSessions.delete(workflowId);
 
 						results.push({
 							json: {

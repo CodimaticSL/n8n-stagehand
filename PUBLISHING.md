@@ -1,6 +1,6 @@
 # Guía de Publicación en NPM
 
-Este documento contiene las instrucciones para publicar el paquete `n8n-stagehand` en npm.
+Este documento contiene las instrucciones para publicar el paquete `n8n-nodes-stagehand-browser` en npm.
 
 ## Prerrequisitos
 
@@ -20,7 +20,7 @@ npm login
 ### 1. Verificar la Configuración
 
 Revisa que toda la información en [`package.json`](package.json:1) sea correcta:
-- Nombre del paquete: `n8n-stagehand`
+- Nombre del paquete: `n8n-nodes-stagehand-browser`
 - Versión actual: `0.1.0`
 - Autor: Codimatic
 - Repositorio: https://github.com/CodimaticSL/n8n-stagehand
@@ -35,7 +35,7 @@ git init
 git add .
 
 # Hacer commit inicial
-git commit -m "Initial commit: n8n-stagehand node"
+git commit -m "Initial commit: n8n-nodes-stagehand-browser node"
 
 # Agregar el remote
 git remote add origin https://github.com/CodimaticSL/n8n-stagehand.git
@@ -95,10 +95,10 @@ npm publish
 Después de publicar, verifica que el paquete esté disponible:
 
 ```bash
-npm view n8n-stagehand
+npm view n8n-nodes-stagehand-browser
 ```
 
-O visita: https://www.npmjs.com/package/n8n-stagehand
+O visita: https://www.npmjs.com/package/n8n-nodes-stagehand-browser
 
 ## Archivos Incluidos en la Publicación
 

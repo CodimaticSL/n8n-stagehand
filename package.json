@@ -1,7 +1,7 @@
 {
-  "name": "n8n-stagehand",
-  "version": "0.1.0",
-  "description": "N8n node for integrating Stagehand browser automation",
+  "name": "n8n-nodes-stagehand-browser",
+  "version": "0.2.3",
+  "description": "N8n node for integrating Stagehand browser automation with Browserless support",
   "keywords": [
     "n8n-community-node-package",
     "stagehand",
@@ -27,6 +27,7 @@
     "lint": "eslint src/**/*.ts",
     "lintfix": "eslint src/**/*.ts --fix",
     "prepublishOnly": "npm run build && npm run lint -s",
+    "postinstall": "playwright install chromium",
     "test": "jest",
     "test:watch": "jest --watch"
   },
