@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-stagehand-browser",
-  "version": "0.2.5",
+  "version": "0.2.7",
   "description": "N8n node for integrating Stagehand browser automation with Browserless support",
   "keywords": [
     "n8n-community-node-package",
@@ -36,9 +36,6 @@
   ],
   "n8n": {
     "n8nNodesApiVersion": 1,
-    "credentials": [
-      "dist/credentials/StagehandApi.credentials.js"
-    ],
     "nodes": [
       "dist/nodes/Stagehand/Stagehand.node.js"
     ]

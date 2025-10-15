@@ -49,7 +49,6 @@ export class Stagehand implements INodeType {
 		},
 		inputs: ['main'],
 		outputs: ['main'],
-		usableAsTool: true,
 		credentials: [
 			{
 				name: 'openAiApi',
