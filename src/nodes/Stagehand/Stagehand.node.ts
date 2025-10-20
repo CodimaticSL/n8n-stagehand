@@ -467,6 +467,10 @@ export class Stagehand implements INodeType {
 								value: 'computer-use-preview',
 							},
 							{
+								name: 'OpenAI: GPT-OSS-120B (Chutes)',
+								value: 'openai/gpt-oss-120b',
+							},
+							{
 								name: 'Anthropic: Claude 3.7 Sonnet (Latest)',
 								value: 'anthropic/claude-3-7-sonnet-latest',
 							},
@@ -492,7 +496,7 @@ export class Stagehand implements INodeType {
 							},
 						],
 						default: '',
-						description: 'AI model to use. If not specified, uses default based on credentials: OpenAI (openai/gpt-4o), Anthropic (anthropic/claude-3-5-sonnet-latest), Google (google/gemini-2.5-flash). Models marked with (Agent) are optimized for agentExecute operation. For custom models (e.g., Chutes GPT-OSS-120B), configure the Base URL in credentials and specify the model name here.',
+						description: 'AI model to use. If not specified, uses default based on credentials: OpenAI (openai/gpt-4o), Anthropic (anthropic/claude-3-5-sonnet-latest), Google (google/gemini-2.5-flash). Models marked with (Agent) are optimized for agentExecute operation. Note: GPT-OSS-120B requires Base URL configured in OpenAI credentials (https://llm.chutes.ai/v1).',
 					},
 					{
 						displayName: 'Enable Caching',

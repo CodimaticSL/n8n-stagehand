@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.19] - 2025-10-21
+
+### Fix: Add GPT-OSS-120B Model to Model List
+
+- **Added:** `openai/gpt-oss-120b` to the available models list
+- **Note:** Requires Base URL configured in OpenAI credentials (`https://llm.chutes.ai/v1`)
+- Works with the simplified OpenAI-compatible API approach introduced in v0.2.18
+
 ## [0.2.18] - 2025-10-21
 
 ### Improvement: Simplified OpenAI-Compatible API Support
