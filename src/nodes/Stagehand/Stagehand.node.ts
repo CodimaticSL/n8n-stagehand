@@ -11,6 +11,8 @@ import type { ZodTypeAny } from 'zod';
 import jsonToZod from 'json-to-zod';
 import jsonSchemaToZod from 'json-schema-to-zod';
 import { createOpenAI } from '@ai-sdk/openai';
+// @ts-ignore - AISdkClient is not yet in published types
+import { AISdkClient } from '@browserbasehq/stagehand';
 
 // Interfaz para almacenar instancia y configuración de Stagehand
 interface StagehandSession {
@@ -689,20 +691,23 @@ export class Stagehand implements INodeType {
 				enableCaching: enableCaching,
 				// Si waitUntil es 'networkidle', no necesitamos domSettleTimeoutMs largo
 				domSettleTimeoutMs: waitUntil === 'networkidle' ? 1000 : domSettleTimeoutMs,
-				modelName: fullModelName,
 			};
 
 			// Si hay un baseURL configurado (para APIs compatibles con OpenAI como Chutes)
-			// crear un cliente OpenAI personalizado usando Vercel AI SDK
+			// usar AISdkClient con createOpenAI para configurar el provider personalizado
 			if (baseURL && aiProvider === 'openai') {
 				console.log('[Stagehand] Creating custom OpenAI-compatible client with baseURL:', baseURL);
 				const customProvider = createOpenAI({
 					baseURL: baseURL,
 					apiKey: apiKey,
 				});
-				stagehandConfig.llmProvider = customProvider;
+				// Crear AISdkClient con el modelo personalizado
+				stagehandConfig.llmClient = new AISdkClient({
+					model: customProvider(fullModelName.replace('openai/', '')),
+				});
 			} else {
-				// Usar la configuración estándar de modelClientOptions
+				// Usar la configuración estándar de modelName y modelClientOptions
+				stagehandConfig.modelName = fullModelName;
 				stagehandConfig.modelClientOptions = {
 					apiKey: apiKey,
 				};
@@ -714,7 +719,7 @@ export class Stagehand implements INodeType {
 				hasBaseURL: !!baseURL,
 				baseURL: baseURL,
 				providerPrefix: aiProvider,
-				usingCustomProvider: !!(baseURL && aiProvider === 'openai'),
+				usingCustomClient: !!(baseURL && aiProvider === 'openai'),
 			}, null, 2));
 
 

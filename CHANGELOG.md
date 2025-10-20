@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.2.21] - 2025-10-21
+
+### Fix: Proper OpenAI-Compatible API Support Using AISdkClient
+
+- **Fixed:** Now correctly uses `AISdkClient` with Vercel AI SDK provider for OpenAI-compatible APIs
+- **Implementation:** When baseURL is configured in OpenAI credentials:
+  ```typescript
+  const customProvider = createOpenAI({
+    baseURL: baseURL,  // e.g., https://llm.chutes.ai/v1
+    apiKey: apiKey,
+  });
+  stagehandConfig.llmClient = new AISdkClient({
+    model: customProvider('gpt-oss-120b'),
+  });
+  ```
+- **Documentation**: Based on official Stagehand docs for custom model configuration
+- **Support:** Works with Chutes, LocalAI, LM Studio, or any OpenAI-compatible API
+- **Debug:** Added console logs to track custom client creation
+
 ## [0.2.20] - 2025-10-21
 
 ### Fix: Proper OpenAI-Compatible API Support Using Vercel AI SDK
