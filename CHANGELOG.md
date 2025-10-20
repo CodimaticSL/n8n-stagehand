@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.2.13] - 2025-10-20
+## [0.2.14] - 2025-10-20
 
 ### 🔧 Cambios Técnicos
 
@@ -8,7 +8,11 @@
 - Revertido `@ai-sdk/openai` a `^1.3.24` (compatible con zod 3.25.x de Stagehand)
 - Revertido `ai` a `^4.3.19` (compatible con @ai-sdk/openai 1.3.24)
 - Actualizado `zod` de `^3.25.76` a `^3.25.0` para mantener compatibilidad
-- **Resultado:** Instalación sin conflictos de dependencias ✅
+- **Resultado:** Instalación sin conflictos de dependencias (FIXED)
+
+## [0.2.13] - 2025-10-20 (Deprecated - Conflicto de dependencias)
+
+- Versión con conflicto de dependencias - No usar
 
 ## [0.2.12] - 2025-10-20
 
