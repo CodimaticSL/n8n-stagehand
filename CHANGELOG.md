@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.13] - 2025-10-20
+
+### 🔧 Cambios Técnicos
+
+- **Fix:** Resolver conflicto de dependencias con zod entre `@ai-sdk/openai@2.0.53` y `@browserbasehq/stagehand@2.5.2`
+- Actualizado `zod` de `^3.25.0` a `^3.25.76` para compatibility
+
 ## [0.2.12] - 2025-10-20
 
 ### ✨ Nuevas Características
