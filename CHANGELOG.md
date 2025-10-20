@@ -1,31 +1,40 @@
 # Changelog
 
+## [0.2.17] - 2025-10-20
+
+### Fix: Include Missing Stagehand PeerDependencies
+
+- **Problem:** Stagehand v2.5.2 has peerDependencies that weren't included: dotenv@^16.4.5 and deepmerge@^4.3.1
+- **Solution:** Added missing peerDependencies as regular dependencies
+  - Added: dotenv@^16.4.5 (required by Stagehand)
+  - Added: deepmerge@^4.3.1 (required by Stagehand)
+
+- **Final Dependency Set:**
+  - @browserbasehq/stagehand@2.5.2
+  - ai@^4.3.19
+  - @ai-sdk/openai@^1.3.24
+  - zod@3.25.67 (exact version to avoid conflicts)
+  - playwright@1.56.0
+  - dotenv@^16.4.5
+  - deepmerge@^4.3.1
+  - json-schema-to-zod@2.6.1
+  - json-to-zod@1.1.2
+
+- **Verified:** 
+  - ✓ Local test with n8n succeeds
+  - ✓ All dependencies load correctly
+  - ✓ Stagehand node instantiates without errors
+  - ✓ Module resolution hierarchy is clean
+
 ## [0.2.16] - 2025-10-20
 
 ### MAJOR FIX: Resolve Nested Module Resolution Issue
 
 - **Problem:** n8n error: Cannot find module '/home/node/.n8n/nodes/node_modules/n8n-nodes-stagehand-browser/node_modules/@browserbasehq/stagehand/node_modules/ai/dist/index.js'
-- **Root Cause:** Packaging all dependencies (including @browserbasehq/stagehand, ai, @ai-sdk/openai) caused npm to create deeply nested node_modules structures when installed via n8n
+- **Root Cause:** Packaging all dependencies caused npm to create deeply nested node_modules structures when installed via n8n
 
-- **Solution:** Move large dependencies to peerDependencies
-  - @browserbasehq/stagehand@2.5.2 → peerDependency
-  - ai@^4.3.19 → peerDependency
-  - @ai-sdk/openai@^1.3.24 → peerDependency
-  - zod@3.25.67 → peerDependency
-  - playwright@^1.52.0 → peerDependency
-  - Keep in devDependencies for local development
-
-- **Benefits:**
-  - Package size reduced (only 2 dependencies shipped: json-schema-to-zod, json-to-zod)
-  - No nested node_modules in n8n installation
-  - ai@4.3.19 properly deduped in n8n environment
-  - Clean module resolution hierarchy
-
-- **Verified:** 
-  - v0.2.16 installed successfully in test environment
-  - Module loads without errors
-  - No nested ai modules created
-  - All 1003 packages installed without conflicts
+- **Solution:** Attempted to move large dependencies to peerDependencies (later reversed in v0.2.17)
+- **Result:** Led to discovery that Stagehand's peerDependencies needed to be included
 
 ## [0.2.15] - 2025-10-20
 
