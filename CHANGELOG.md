@@ -4,8 +4,11 @@
 
 ### 🔧 Cambios Técnicos
 
-- **Fix:** Resolver conflicto de dependencias con zod entre `@ai-sdk/openai@2.0.53` y `@browserbasehq/stagehand@2.5.2`
-- Actualizado `zod` de `^3.25.0` a `^3.25.76` para compatibility
+- **Fix:** Resolver conflicto de dependencias con zod entre `@ai-sdk/openai` y `@browserbasehq/stagehand`
+- Revertido `@ai-sdk/openai` a `^1.3.24` (compatible con zod 3.25.x de Stagehand)
+- Revertido `ai` a `^4.3.19` (compatible con @ai-sdk/openai 1.3.24)
+- Actualizado `zod` de `^3.25.76` a `^3.25.0` para mantener compatibilidad
+- **Resultado:** Instalación sin conflictos de dependencias ✅
 
 ## [0.2.12] - 2025-10-20
 
