@@ -79,15 +79,6 @@ export class Stagehand implements INodeType {
 					},
 				},
 			},
-			{
-				name: 'openAiApi',
-				required: true,
-				displayOptions: {
-					show: {
-						aiProvider: ['chutes'],
-					},
-				},
-			},
 		],
 		properties: [
 			{
@@ -107,13 +98,9 @@ export class Stagehand implements INodeType {
 						name: 'Google (Gemini)',
 						value: 'google',
 					},
-					{
-						name: 'Chutes (OpenAI-Compatible)',
-						value: 'chutes',
-					},
 				],
 				default: 'openai',
-				description: 'Select which AI provider to use for operations that require AI',
+				description: 'Select which AI provider to use for operations that require AI. For OpenAI-compatible APIs (like Chutes), select OpenAI and configure the Base URL in the credentials.',
 			},
 			{
 				displayName: 'Operation',
@@ -503,13 +490,9 @@ export class Stagehand implements INodeType {
 								name: 'Google: Gemini 2.5 Computer Use Preview (Agent)',
 								value: 'gemini-2.5-computer-use-preview-10-2025',
 							},
-							{
-								name: 'Chutes: GPT-OSS-120B',
-								value: 'openai/gpt-oss-120b',
-							},
 						],
 						default: '',
-						description: 'AI model to use. If not specified, uses default based on credentials: OpenAI (openai/gpt-4o), Anthropic (anthropic/claude-3-5-sonnet-latest), Google (google/gemini-2.5-flash), Chutes (openai/gpt-oss-120b). Models marked with (Agent) are optimized for agentExecute operation.',
+						description: 'AI model to use. If not specified, uses default based on credentials: OpenAI (openai/gpt-4o), Anthropic (anthropic/claude-3-5-sonnet-latest), Google (google/gemini-2.5-flash). Models marked with (Agent) are optimized for agentExecute operation. For custom models (e.g., Chutes GPT-OSS-120B), configure the Base URL in credentials and specify the model name here.',
 					},
 					{
 						displayName: 'Enable Caching',
@@ -615,9 +598,9 @@ export class Stagehand implements INodeType {
 
 		// Obtener credenciales según el proveedor seleccionado
 		let apiKey: string | undefined;
+		let baseURL: string | undefined;
 		let modelProvider = aiProvider;
 		let modelName = '';
-		let chutesApiKey: string | undefined;
 
 		// Obtener las credenciales del proveedor seleccionado
 		try {
@@ -625,6 +608,8 @@ export class Stagehand implements INodeType {
 				const openaiCreds = await this.getCredentials('openAiApi');
 				if (openaiCreds?.apiKey) {
 					apiKey = openaiCreds.apiKey as string;
+					// Obtener baseURL si está configurado (para APIs compatibles con OpenAI como Chutes)
+					baseURL = openaiCreds.baseURL as string | undefined;
 					modelName = customModelName || 'openai/gpt-4o';
 				}
 			} else if (aiProvider === 'anthropic') {
@@ -638,14 +623,6 @@ export class Stagehand implements INodeType {
 				if (googleCreds?.apiKey) {
 					apiKey = googleCreds.apiKey as string;
 					modelName = customModelName || 'google/gemini-2.5-flash';
-				}
-			} else if (aiProvider === 'chutes') {
-				// Para Chutes, usamos credencial de OpenAI (ya que es compatible con OpenAI API)
-				const openaiCreds = await this.getCredentials('openAiApi');
-				if (openaiCreds?.apiKey) {
-					apiKey = openaiCreds.apiKey as string;
-					chutesApiKey = openaiCreds.apiKey as string;
-					modelName = customModelName || 'openai/gpt-oss-120b';
 				}
 			}
 		} catch (error) {
@@ -707,20 +684,15 @@ export class Stagehand implements INodeType {
 				enableCaching: enableCaching,
 				// Si waitUntil es 'networkidle', no necesitamos domSettleTimeoutMs largo
 				domSettleTimeoutMs: waitUntil === 'networkidle' ? 1000 : domSettleTimeoutMs,
+				modelName: fullModelName,
 				modelClientOptions: {
 					apiKey: apiKey,
 				},
 			};
 
-			// Si es Chutes, configurar un cliente OpenAI personalizado
-			if (provider === 'chutes') {
-				stagehandConfig.modelName = 'openai/gpt-oss-120b';
-				stagehandConfig.modelClientOptions = {
-					apiKey: chutesApiKey,
-					baseURL: 'https://llm.chutes.ai/v1',
-				};
-			} else {
-				stagehandConfig.modelName = fullModelName;
+			// Si hay un baseURL configurado (para APIs compatibles con OpenAI como Chutes)
+			if (baseURL) {
+				stagehandConfig.modelClientOptions.baseURL = baseURL;
 			}
 
 			// Configure browser connection based on mode

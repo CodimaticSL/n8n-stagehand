@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.2.18] - 2025-10-21
+
+### Improvement: Simplified OpenAI-Compatible API Support
+
+- **Change:** Removed separate "Chutes" AI provider option
+- **New Approach:** Use OpenAI credentials with custom Base URL for any OpenAI-compatible API
+  - Configure Base URL in OpenAI credentials (e.g., `https://llm.chutes.ai/v1`)
+  - Specify custom model name in Advanced Options (e.g., `openai/gpt-oss-120b`)
+  - Works with Chutes, LocalAI, LM Studio, or any OpenAI-compatible endpoint
+
+- **Benefits:**
+  - Cleaner UI - no separate provider option
+  - More flexible - works with any OpenAI-compatible API
+  - Less confusion - reuses existing OpenAI credential type
+  - No duplicate credential management
+
 ## [0.2.17] - 2025-10-20
 
 ### Fix: Include Missing Stagehand PeerDependencies
