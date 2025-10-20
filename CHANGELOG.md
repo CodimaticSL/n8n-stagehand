@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.2.20] - 2025-10-21
+
+### Fix: Proper OpenAI-Compatible API Support Using Vercel AI SDK
+
+- **Fixed:** Now correctly uses Vercel AI SDK (`createOpenAI`) to create custom provider with baseURL
+- **Change:** Uses `llmProvider` instead of `llmClient` for custom OpenAI-compatible endpoints
+- **Implementation:** When baseURL is configured in OpenAI credentials, creates custom provider:
+  ```typescript
+  const customProvider = createOpenAI({
+    baseURL: baseURL,  // e.g., https://llm.chutes.ai/v1
+    apiKey: apiKey,
+  });
+  stagehandConfig.llmProvider = customProvider;
+  ```
+- **Support:** Works with Chutes, LocalAI, LM Studio, or any OpenAI-compatible API
+- **Debug:** Added console logs to track custom provider creation
+
 ## [0.2.19] - 2025-10-21
 
 ### Fix: Add GPT-OSS-120B Model to Model List

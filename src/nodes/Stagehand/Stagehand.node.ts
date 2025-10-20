@@ -613,7 +613,8 @@ export class Stagehand implements INodeType {
 				if (openaiCreds?.apiKey) {
 					apiKey = openaiCreds.apiKey as string;
 					// Obtener baseURL si está configurado (para APIs compatibles con OpenAI como Chutes)
-					baseURL = openaiCreds.baseURL as string | undefined;
+					// n8n puede usar 'baseURL' o 'baseUrl' dependiendo de la versión
+					baseURL = (openaiCreds.baseURL || openaiCreds.baseUrl) as string | undefined;
 					modelName = customModelName || 'openai/gpt-4o';
 				}
 			} else if (aiProvider === 'anthropic') {
@@ -689,15 +690,34 @@ export class Stagehand implements INodeType {
 				// Si waitUntil es 'networkidle', no necesitamos domSettleTimeoutMs largo
 				domSettleTimeoutMs: waitUntil === 'networkidle' ? 1000 : domSettleTimeoutMs,
 				modelName: fullModelName,
-				modelClientOptions: {
-					apiKey: apiKey,
-				},
 			};
 
 			// Si hay un baseURL configurado (para APIs compatibles con OpenAI como Chutes)
-			if (baseURL) {
-				stagehandConfig.modelClientOptions.baseURL = baseURL;
+			// crear un cliente OpenAI personalizado usando Vercel AI SDK
+			if (baseURL && aiProvider === 'openai') {
+				console.log('[Stagehand] Creating custom OpenAI-compatible client with baseURL:', baseURL);
+				const customProvider = createOpenAI({
+					baseURL: baseURL,
+					apiKey: apiKey,
+				});
+				stagehandConfig.llmProvider = customProvider;
+			} else {
+				// Usar la configuración estándar de modelClientOptions
+				stagehandConfig.modelClientOptions = {
+					apiKey: apiKey,
+				};
 			}
+
+			console.log('[Stagehand] Configuration:', JSON.stringify({
+				modelName: fullModelName,
+				hasApiKey: !!apiKey,
+				hasBaseURL: !!baseURL,
+				baseURL: baseURL,
+				providerPrefix: aiProvider,
+				usingCustomProvider: !!(baseURL && aiProvider === 'openai'),
+			}, null, 2));
+
+
 
 			// Configure browser connection based on mode
 			if (browserMode === 'remote' && cdpUrl) {
