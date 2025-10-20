@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-stagehand-browser",
-  "version": "0.2.8",
+  "version": "0.2.12",
   "description": "N8n node for integrating Stagehand browser automation with Browserless support",
   "keywords": [
     "n8n-community-node-package",
@@ -61,7 +61,9 @@
     "n8n-workflow": ">=1.0.0"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^2.0.53",
     "@browserbasehq/stagehand": "2.5.2",
+    "ai": "^5.0.76",
     "json-schema-to-zod": "2.6.1",
     "json-to-zod": "1.1.2",
     "playwright": "1.56.0",
