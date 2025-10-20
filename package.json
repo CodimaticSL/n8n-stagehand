@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-stagehand-browser",
-  "version": "0.2.14",
+  "version": "0.2.15",
   "description": "N8n node for integrating Stagehand browser automation with Browserless support",
   "keywords": [
     "n8n-community-node-package",
@@ -67,7 +67,7 @@
     "json-schema-to-zod": "2.6.1",
     "json-to-zod": "1.1.2",
     "playwright": "1.56.0",
-    "zod": "^3.25.0"
+    "zod": "3.25.67"
   },
   "overrides": {
     "pkce-challenge": "3.1.0"
