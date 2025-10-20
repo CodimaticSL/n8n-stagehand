@@ -20,6 +20,7 @@
   - @ai-sdk/openai@^1.3.24 (deduped correctly via Stagehand)
   - zod@3.25.67 (exact, within Stagehand constraint)
   - All 1000 packages resolve without conflicts
+  - Published successfully to npm
 
 ## [0.2.14] - 2025-10-20
 
