@@ -469,8 +469,8 @@ export class Stagehand implements INodeType {
 								value: 'computer-use-preview',
 							},
 							{
-								name: 'OpenAI: GPT-OSS-120B (Chutes)',
-								value: 'openai/gpt-oss-120b',
+								name: 'DeepSeek V3 (Chutes)',
+								value: 'deepseek-ai/DeepSeek-V3-0324',
 							},
 							{
 								name: 'Anthropic: Claude 3.7 Sonnet (Latest)',
@@ -498,7 +498,7 @@ export class Stagehand implements INodeType {
 							},
 						],
 						default: '',
-						description: 'AI model to use. If not specified, uses default based on credentials: OpenAI (openai/gpt-4o), Anthropic (anthropic/claude-3-5-sonnet-latest), Google (google/gemini-2.5-flash). Models marked with (Agent) are optimized for agentExecute operation. Note: GPT-OSS-120B requires Base URL configured in OpenAI credentials (https://llm.chutes.ai/v1).',
+						description: 'AI model to use. If not specified, uses default based on credentials: OpenAI (openai/gpt-4o), Anthropic (anthropic/claude-3-5-sonnet-latest), Google (google/gemini-2.5-flash). Models marked with (Agent) are optimized for agentExecute operation. Note: DeepSeek V3 requires Base URL configured in credentials (https://llm.chutes.ai/v1).',
 					},
 					{
 						displayName: 'Enable Caching',
@@ -615,8 +615,8 @@ export class Stagehand implements INodeType {
 				if (openaiCreds?.apiKey) {
 					apiKey = openaiCreds.apiKey as string;
 					// Obtener baseURL si está configurado (para APIs compatibles con OpenAI como Chutes)
-					// n8n puede usar 'baseURL' o 'baseUrl' dependiendo de la versión
-					baseURL = (openaiCreds.baseURL || openaiCreds.baseUrl) as string | undefined;
+					// n8n puede usar 'baseURL', 'baseUrl', o 'url' dependiendo de la versión y configuración
+					baseURL = (openaiCreds.baseURL || openaiCreds.baseUrl || openaiCreds.url) as string | undefined;
 					modelName = customModelName || 'openai/gpt-4o';
 				}
 			} else if (aiProvider === 'anthropic') {
@@ -693,18 +693,50 @@ export class Stagehand implements INodeType {
 				domSettleTimeoutMs: waitUntil === 'networkidle' ? 1000 : domSettleTimeoutMs,
 			};
 
-			// Si hay un baseURL configurado (para APIs compatibles con OpenAI como Chutes)
+			// Si hay un baseURL configurado (para APIs compatibles como Chutes)
 			// usar AISdkClient con createOpenAI para configurar el provider personalizado
 			if (baseURL && aiProvider === 'openai') {
-				console.log('[Stagehand] Creating custom OpenAI-compatible client with baseURL:', baseURL);
+				console.log('[Stagehand] Creating custom AI client with baseURL:', baseURL);
+				console.log('[Stagehand] Provider:', aiProvider);
+				console.log('[Stagehand] Using full model name:', fullModelName);
+				console.log('[Stagehand] API Key (first 10 chars):', apiKey.substring(0, 10) + '...');
+				
+				// Establecer la variable de entorno para el cliente
+				process.env.OPENAI_API_KEY = apiKey;
+				
+				// Crear provider OpenAI compatible con configuración específica para Chutes
 				const customProvider = createOpenAI({
 					baseURL: baseURL,
 					apiKey: apiKey,
+					headers: {
+						'Content-Type': 'application/json',
+						'Accept': 'application/json',
+						'HTTP-Referer': 'https://n8n.io',
+						'X-Title': 'n8n Stagehand Integration',
+					},
 				});
+				
+				let model;
+				
+				// Para Chutes API, detectar si es Chutes y usar gpt-oss-120b
+				const isChutesAPI = baseURL.includes('chutes.ai');
+				
+				if (isChutesAPI) {
+					// Para Chutes API, usar el modelo por defecto según la documentación
+					console.log('[Stagehand] Detected Chutes API - using default model from documentation');
+					
+					model = customProvider.chat('deepseek-ai/DeepSeek-V3-0324') as any;
+					
+					console.log('[Stagehand] Using Chutes API with default model: deepseek-ai/DeepSeek-V3-0324');
+				} else {
+					// Para otros modelos, usar el nombre completo
+					model = customProvider.chat(fullModelName) as any;
+					console.log('[Stagehand] Using model:', fullModelName);
+				}
+				
 				// Crear AISdkClient con el modelo personalizado
-				stagehandConfig.llmClient = new AISdkClient({
-					model: customProvider(fullModelName.replace('openai/', '')),
-				});
+				stagehandConfig.llmClient = new AISdkClient({ model });
+				console.log('[Stagehand] Custom AI client created successfully');
 			} else {
 				// Usar la configuración estándar de modelName y modelClientOptions
 				stagehandConfig.modelName = fullModelName;
