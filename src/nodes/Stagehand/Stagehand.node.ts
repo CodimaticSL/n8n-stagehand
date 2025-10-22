@@ -11,6 +11,9 @@ import type { ZodTypeAny } from 'zod';
 import jsonToZod from 'json-to-zod';
 import jsonSchemaToZod from 'json-schema-to-zod';
 import { createOpenAI } from '@ai-sdk/openai';
+import { createCerebras } from '@ai-sdk/cerebras';
+import { createOpenRouter } from '@openrouter/ai-sdk-provider';
+import { zodToJsonSchema } from 'zod-to-json-schema';
 // @ts-ignore - AISdkClient is not yet in published types
 import { AISdkClient } from '@browserbasehq/stagehand';
 
@@ -28,6 +31,10 @@ interface StagehandSession {
 	waitUntil: 'load' | 'domcontentloaded' | 'networkidle';
 	lastNavigatedUrl?: string; // Guardar la última URL navegada
 	aiProvider: string;
+	heartbeatTimeout?: NodeJS.Timeout | null; // Timeout para heartbeat recursivo
+	lastHeartbeat?: number; // Timestamp del último heartbeat
+	heartbeatCount?: number; // Contador de heartbeats exitosos
+	isHeartbeatActive?: boolean; // Estado del heartbeat
 }
 
 // Mapa global para almacenar sesiones de Stagehand por workflow ID
@@ -81,6 +88,24 @@ export class Stagehand implements INodeType {
 					},
 				},
 			},
+			{
+				name: 'cerebrasApi',
+				required: true,
+				displayOptions: {
+					show: {
+						aiProvider: ['cerebras'],
+					},
+				},
+			},
+			{
+				name: 'openRouterApi',
+				required: true,
+				displayOptions: {
+					show: {
+						aiProvider: ['openrouter'],
+					},
+				},
+			},
 		],
 		properties: [
 			{
@@ -99,6 +124,14 @@ export class Stagehand implements INodeType {
 					{
 						name: 'Google (Gemini)',
 						value: 'google',
+					},
+					{
+						name: 'Cerebras',
+						value: 'cerebras',
+					},
+					{
+						name: 'OpenRouter',
+						value: 'openrouter',
 					},
 				],
 				default: 'openai',
@@ -496,9 +529,49 @@ export class Stagehand implements INodeType {
 								name: 'Google: Gemini 2.5 Computer Use Preview (Agent)',
 								value: 'gemini-2.5-computer-use-preview-10-2025',
 							},
+							{
+								name: 'Cerebras: Llama 3.1 8B',
+								value: 'cerebras/llama3.1-8b',
+							},
+							{
+								name: 'Cerebras: Llama 3.3 70B',
+								value: 'cerebras/llama-3.3-70b',
+							},
+							{
+								name: 'Cerebras: GPT-OSS-120B (Agent)',
+								value: 'cerebras/gpt-oss-120b',
+							},
+							{
+								name: 'Cerebras: Qwen 3 235B',
+								value: 'cerebras/qwen-3-235b-a22b-instruct-2507',
+							},
+							{
+								name: 'Cerebras: Qwen 3 32B',
+								value: 'cerebras/qwen-3-32b',
+							},
+							{
+								name: 'Cerebras: Qwen 3 Coder 480B',
+								value: 'cerebras/qwen-3-coder-480b',
+							},
+							{
+								name: 'OpenRouter: Cerebras GPT-OSS-120B',
+								value: 'openrouter/openai/gpt-oss-120b',
+							},
+							{
+								name: 'OpenRouter: DeepSeek V3',
+								value: 'openrouter/deepseek/deepseek-chat',
+							},
+							{
+								name: 'OpenRouter: Claude 3.5 Sonnet',
+								value: 'openrouter/anthropic/claude-3.5-sonnet',
+							},
+							{
+								name: 'OpenRouter: GPT-4o',
+								value: 'openrouter/openai/gpt-4o',
+							},
 						],
 						default: '',
-						description: 'AI model to use. If not specified, uses default based on credentials: OpenAI (openai/gpt-4o), Anthropic (anthropic/claude-3-5-sonnet-latest), Google (google/gemini-2.5-flash). Models marked with (Agent) are optimized for agentExecute operation. Note: DeepSeek V3 requires Base URL configured in credentials (https://llm.chutes.ai/v1).',
+						description: 'AI model to use. If not specified, uses default based on credentials: OpenAI (openai/gpt-4o), Anthropic (anthropic/claude-3-5-sonnet-latest), Google (google/gemini-2.5-flash), Cerebras (cerebras/llama3.1-8b), OpenRouter (openrouter/cerebras/gpt-oss-120b). Models marked with (Agent) are optimized for agentExecute operation. Note: DeepSeek V3 requires Base URL configured in credentials (https://llm.chutes.ai/v1). OpenRouter provides access to Cerebras models through their aggregator.',
 					},
 					{
 						displayName: 'Enable Caching',
@@ -631,6 +704,18 @@ export class Stagehand implements INodeType {
 					apiKey = googleCreds.apiKey as string;
 					modelName = customModelName || 'google/gemini-2.5-flash';
 				}
+			} else if (aiProvider === 'cerebras') {
+				const cerebrasCreds = await this.getCredentials('cerebrasApi');
+				if (cerebrasCreds?.apiKey) {
+					apiKey = cerebrasCreds.apiKey as string;
+					modelName = customModelName || 'cerebras/llama3.1-8b';
+				}
+			} else if (aiProvider === 'openrouter') {
+				const openRouterCreds = await this.getCredentials('openRouterApi');
+				if (openRouterCreds?.apiKey) {
+					apiKey = openRouterCreds.apiKey as string;
+					modelName = customModelName || 'openrouter/openai/gpt-oss-120b';
+				}
 			}
 		} catch (error) {
 			throw new ApplicationError(
@@ -737,6 +822,100 @@ export class Stagehand implements INodeType {
 				// Crear AISdkClient con el modelo personalizado
 				stagehandConfig.llmClient = new AISdkClient({ model });
 				console.log('[Stagehand] Custom AI client created successfully');
+			} else if (aiProvider === 'cerebras') {
+				// Configurar Cerebras como provider OpenAI-compatible (tipo Chutes)
+				console.log('[Stagehand] Creating Cerebras AI client using OpenAI-compatible provider');
+				console.log('[Stagehand] Provider:', aiProvider);
+				console.log('[Stagehand] Using full model name:', fullModelName);
+				console.log('[Stagehand] API Key (first 10 chars):', apiKey.substring(0, 10) + '...');
+				
+				// Usar OpenAI provider con baseURL de Cerebras (como Chutes)
+				// Cerebras es compatible con OpenAI API: https://api.cerebras.ai/v1
+				const cerebrasBaseURL = 'https://api.cerebras.ai/v1';
+				
+				// Establecer variable de entorno para el cliente
+				process.env.OPENAI_API_KEY = apiKey;
+				
+				// Crear provider OpenAI compatible con configuración específica para Cerebras
+				const cerebrasProvider = createOpenAI({
+					baseURL: cerebrasBaseURL,
+					apiKey: apiKey,
+					headers: {
+						'Content-Type': 'application/json',
+						'Accept': 'application/json',
+						'HTTP-Referer': 'https://n8n.io',
+						'X-Title': 'n8n Stagehand Integration',
+					},
+				});
+				
+				// Para Cerebras, el modelo ya viene sin prefijo en el valor seleccionado
+				// No necesitamos quitar el prefijo porque el usuario selecciona el modelo correcto
+				const cerebrasModelName = fullModelName.includes('cerebras/')
+					? fullModelName.replace('cerebras/', '')
+					: fullModelName;
+				
+				let model;
+				
+				// Para Cerebras, usar el nombre del modelo directamente con el método correcto
+				console.log('[Stagehand] Using Cerebras OpenAI-compatible API with model:', cerebrasModelName);
+				
+				// Para Cerebras, usar el método .chat() que es más compatible con OpenAI API
+				// Según el curl, el endpoint es /chat/completions
+				try {
+					model = cerebrasProvider.chat(cerebrasModelName) as any;
+					console.log('[Stagehand] Using chat method for Cerebras (OpenAI-compatible)');
+				} catch (error) {
+					console.log('[Stagehand] Falling back to direct model creation for Cerebras:', error);
+					model = cerebrasProvider(cerebrasModelName) as any;
+				}
+				
+				// Crear AISdkClient con el modelo Cerebras (OpenAI-compatible)
+				stagehandConfig.llmClient = new AISdkClient({ model });
+				
+				console.log('[Stagehand] Cerebras AI client created successfully using OpenAI-compatible provider');
+				console.log('[Stagehand] Base URL:', cerebrasBaseURL);
+				console.log('[Stagehand] Model:', cerebrasModelName);
+				console.log('[Stagehand] Using OpenAI structured output with Cerebras');
+			} else if (aiProvider === 'openrouter') {
+				// Configurar OpenRouter como provider
+				console.log('[Stagehand] Creating OpenRouter AI client');
+				console.log('[Stagehand] Provider:', aiProvider);
+				console.log('[Stagehand] Using full model name:', fullModelName);
+				console.log('[Stagehand] API Key (first 10 chars):', apiKey.substring(0, 10) + '...');
+				
+				// Establecer variable de entorno para el cliente
+				process.env.OPENAI_API_KEY = apiKey;
+				
+				// Crear provider OpenRouter
+				const openRouterProvider = createOpenRouter({
+					apiKey: apiKey,
+				});
+				
+				// Para OpenRouter, el modelo ya viene con el formato correcto
+				// Necesitamos quitar el prefijo 'openrouter/' si existe
+				const openRouterModelName = fullModelName.includes('openrouter/')
+					? fullModelName.replace('openrouter/', '')
+					: fullModelName;
+				
+				let model;
+				
+				console.log('[Stagehand] Using OpenRouter API with model:', openRouterModelName);
+				
+				// Para OpenRouter, usar el método .chat()
+				try {
+					model = openRouterProvider.chat(openRouterModelName) as any;
+					console.log('[Stagehand] Using chat method for OpenRouter');
+				} catch (error) {
+					console.log('[Stagehand] Falling back to direct model creation for OpenRouter:', error);
+					model = openRouterProvider(openRouterModelName) as any;
+				}
+				
+				// Crear AISdkClient con el modelo OpenRouter
+				stagehandConfig.llmClient = new AISdkClient({ model });
+				
+				console.log('[Stagehand] OpenRouter AI client created successfully');
+				console.log('[Stagehand] Model:', openRouterModelName);
+				console.log('[Stagehand] Using OpenRouter structured output');
 			} else {
 				// Usar la configuración estándar de modelName y modelClientOptions
 				stagehandConfig.modelName = fullModelName;
@@ -813,6 +992,85 @@ export class Stagehand implements INodeType {
 			return newStagehand;
 		};
 
+		// Función helper para ejecutar heartbeat de forma recursiva y segura
+		const executeHeartbeat = async (session: StagehandSession): Promise<void> => {
+			try {
+				// Verificar si el heartbeat debe seguir activo
+				if (!session.isHeartbeatActive) {
+					return;
+				}
+
+				// Operación robusta para mantener conexión activa - método seguro sin user input
+				// Usamos title() que es una operación simple y segura para mantener conexión activa
+				const pageTitle = await session.instance.page.title();
+				
+				// Información adicional para logging (sin ejecución dinámica)
+				const currentUrl = session.instance.page.url();
+				
+				// Actualizar estado del heartbeat
+				session.lastHeartbeat = Date.now();
+				session.heartbeatCount = (session.heartbeatCount || 0) + 1;
+
+				// Logging detallado para diagnóstico
+				if (session.verbose >= 2) {
+					console.log(`[Stagehand] Heartbeat #${session.heartbeatCount} for workflow ${workflowId}:`, {
+						url: currentUrl,
+						pageTitle: pageTitle,
+						method: 'title',
+						lastActivity: new Date(session.lastHeartbeat).toISOString()
+					});
+				}
+
+				// Programar siguiente heartbeat de forma recursiva solo si sigue activo
+				if (session.isHeartbeatActive) {
+					session.heartbeatTimeout = setTimeout(() => {
+						executeHeartbeat(session);
+					}, 20000); // Cada 20 segundos
+				}
+
+			} catch (error) {
+				console.error(`[Stagehand] Heartbeat failed for workflow ${workflowId}:`, error);
+				
+				// Detener heartbeat en caso de error
+				session.isHeartbeatActive = false;
+				if (session.heartbeatTimeout) {
+					clearTimeout(session.heartbeatTimeout);
+					session.heartbeatTimeout = null;
+				}
+
+				// Marcar sesión como inválida
+				session.lastHeartbeat = 0;
+				session.heartbeatCount = 0;
+			}
+		};
+
+		// Función helper para iniciar heartbeat de la sesión
+		const startHeartbeat = (session: StagehandSession): void => {
+			// Detener cualquier heartbeat existente
+			stopHeartbeat(session);
+
+			// Iniciar nuevo heartbeat recursivo
+			session.isHeartbeatActive = true;
+			session.heartbeatCount = 0;
+			
+			// Iniciar el primer heartbeat inmediatamente
+			executeHeartbeat(session);
+		};
+
+		// Función helper para detener heartbeat
+		const stopHeartbeat = (session: StagehandSession): void => {
+			// Marcar como inactivo
+			session.isHeartbeatActive = false;
+			
+			// Limpiar timeout si existe
+			if (session.heartbeatTimeout) {
+				clearTimeout(session.heartbeatTimeout);
+				session.heartbeatTimeout = null;
+			}
+			
+			console.log(`[Stagehand] Heartbeat stopped for workflow ${workflowId}`);
+		};
+
 		// Función helper para reconectar cuando se detecta sesión perdida
 		const reconnectIfNeeded = async (): Promise<void> => {
 			const session = stagehandSessions.get(workflowId);
@@ -822,11 +1080,16 @@ export class Stagehand implements INodeType {
 				);
 			}
 
+			// Detener heartbeat antes de reconectar
+			stopHeartbeat(session);
+
 			if (!session.lastNavigatedUrl) {
 				throw new ApplicationError(
 					'Browser session lost and no previous URL found. Please execute the Navigate operation first.',
 				);
 			}
+
+			console.log(`[Stagehand] Reconnecting session for workflow ${workflowId} to ${session.lastNavigatedUrl}`);
 
 			// Recrear instancia con la configuración guardada
 			stagehand = await createStagehandInstance(
@@ -837,6 +1100,12 @@ export class Stagehand implements INodeType {
 
 			// Navegar automáticamente a la última URL con el waitUntil guardado
 			await stagehand.page.goto(session.lastNavigatedUrl, { waitUntil: session.waitUntil });
+
+			// Reiniciar heartbeat con la nueva instancia
+			const updatedSession = stagehandSessions.get(workflowId);
+			if (updatedSession) {
+				startHeartbeat(updatedSession);
+			}
 		};
 
 		if (!needsNewInstance && existingSession) {
